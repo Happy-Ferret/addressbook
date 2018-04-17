@@ -14,12 +14,12 @@ It supports:
   - `localhost:8080/entry/Doe` -> returns json object with entries with the lastName=Doe
 
 TODO:
-  - Create entry -> html form
-  - Modify entry -> html form (?)
-  - Delete entry
-  - add some sort of data persistance (database)
-  - Import from CSV
-  - Export to CSV
+  [x] Create entry -> html form (basic implementation done)
+  [] Modify entry -> html form (?)
+  [] Delete entry
+  [] add some sort of data persistance (database)
+  [] Import from CSV
+  [] Export to CSV
 
 My original implementation, which you can see in `old/` I had tried to use 
 protobufs because of their efficiency but I ended up spiraling down a gRPC rabbit hole that took me away from the original problem.
