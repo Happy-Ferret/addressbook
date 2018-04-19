@@ -1,0 +1,17 @@
+<html>
+  <head>
+    <h1>List Entries</h1>
+  </head>
+  <body>
+    {{range .}}
+    <ul>
+    <li>  {{ .FirstName }} </li>
+    <li>  {{ .LastName }} </li>
+    <li>  {{ .Email }}  </li>
+    <li>  {{ .Phone }} </li>
+  </ul>
+  <hr>
+      {{end}}
+
+  </body>
+</html>
