@@ -1,0 +1,14 @@
+<html>
+  <head>
+    <h1> Modify an Entry </h1>
+  </head>
+  <body>
+    <form method="POST" action="/modify" />
+    <p> <input name="id" type="number" value="{{.ID}}" readonly/> </p> 
+    <p> First Name:<input name="first_name" type="text" value="{{.FirstName}}" /> </p> 
+    <p> Last Name:<input name="last_name" type="text" value="{{.LastName}}" /> </p> 
+    <p> Phone:<input name="phone" type="text" value="{{.Phone}}" /> </p> 
+    <p> Email:<input name="email" type="email" value="{{.Email}}" /> </p> 
+    <input type="submit" value="Submit changes" />
+  </body>
+</html>

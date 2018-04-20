@@ -1,0 +1,35 @@
+<html>
+  <head>
+    <h1> All Entries </h1>
+  </head>
+  <body>
+    <form method="GET" action="/add">
+      <input type="submit" value="Add an entry"/>
+    </form>
+    <form method="GET" action="/export" >
+      <input type="submit" value="Export CSV"/>
+    </form>
+    <form method="GET" action="/import" >
+      <input type="submit" value="Import CSV"/>
+    </form>
+  
+    {{ range . }}
+    {{ .FirstName }} {{ .LastName }} <br>
+    {{ .Phone }} <br>
+    {{ .Email }} <br>
+
+    <form method="GET" action="/modify" >
+      <input type="hidden" value="{{.ID}}" name=id readonly />
+      <input type="submit" value="Modify"/>
+    </form>
+    <form method="DELETE" action="/delete" >
+      <input type="hidden" value="{{.ID}}" name=id readonly />
+      <input type="submit" value="Delete"/>
+    </form>
+    <hr>
+    {{end}}
+  </body>
+</html>
+
+
+

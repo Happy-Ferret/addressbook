@@ -1,106 +1,201 @@
 package main
 
 import (
+	"bufio"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 
+	"github.com/JessTheBell/addressbook/entry"
 	"github.com/alecthomas/template"
-	"github.com/gorilla/mux"
 )
 
-// Entry is an entry in the addressbook
-type Entry struct {
-	ID        string `json:"id,omitempty"`
-	FirstName string `json:"first_name,omitempty"`
-	LastName  string `json:"last_name,omitempty"`
-	Email     string `json:"email,omitempty"`
-	Phone     string `json:"phone,omitempty"`
-}
-
-var entries []Entry
+var book entry.Book
 
 func main() {
-
-	r := mux.NewRouter()
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "AddressBook v0.2")
-	})
-
-	// List all entries
-	r.HandleFunc("/entry", GetAll)
-	r.HandleFunc("/listPretty", ListPretty)
-	// Get Specific Entry
-	r.HandleFunc("/entry/{id:[0-9]+}", GetEntry).Methods("GET")      // single entry by ID
-	r.HandleFunc("/entry/{name:[a-zA-Z]+}", GetEntry).Methods("GET") // One or more entries by first/last name
-	// Create an Entry (using simple form)
-	r.HandleFunc("/add", CreateEntry)
-	// TODO modify (PUT)
-	r.HandleFunc("/entry/modify/{id}", ModifyEntry).Methods("PUT")
-	// TODO delete (DELETE)
-	//r.HandleFunc("/entry/{id}", DeleteEntry).Methods("DELETE")
-
-	// TODO import from csv
-	// TODO export to csv
-	entries = append(entries, Entry{ID: "1", FirstName: "John", LastName: "Doe", Email: "jd@gmail.com", Phone: "214-009-9000"})
-	entries = append(entries, Entry{ID: "2", FirstName: "Jane", LastName: "Doe", Email: "djd@gmail.com", Phone: "432-222-2122"})
-	entries = append(entries, Entry{ID: "3", FirstName: "Jessica", LastName: "Bellon", Email: "jess@jessicabellon.com", Phone: "214-870-7789"})
-	log.Fatal(http.ListenAndServe("localhost:8080", r))
+	//	populate() // populate with example entries
+	http.HandleFunc("/", listHandler)
+	http.HandleFunc("/get", getHandler)       // get and display
+	http.HandleFunc("/add", addHandler)       // form to add an entry
+	http.HandleFunc("/modify", modifyHandler) // modify an existing entry
+	http.HandleFunc("/delete", deleteHandler) // delete an existing entry
+	http.HandleFunc("/export", exportHandler) // export book to csv file
+	http.HandleFunc("/import", importHandler) // import existing csv file
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func GetAll(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(entries)
+func listHandler(w http.ResponseWriter, r *http.Request) {
+	tmpl := template.Must(template.ParseFiles("./pages/list.tmpl"))
+	tmpl.Execute(w, book.All())
 }
 
-func GetEntry(w http.ResponseWriter, r *http.Request) {
-	var matches []Entry
-	params := mux.Vars(r)
-	w.Header().Set("Content-Type", "application/json")
-	_, hasName := params["name"]
-	_, hasID := params["id"]
-	for _, e := range entries {
-		if hasName {
-			if e.FirstName == params["name"] || e.LastName == params["name"] {
-				matches = append(matches, e)
-			}
-		}
-		if hasID && e.ID == params["id"] {
-			matches = append(matches, e)
-		}
-
-	}
-	json.NewEncoder(w).Encode(matches)
-}
-
-func CreateEntry(w http.ResponseWriter, r *http.Request) {
-
+func addHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case "GET": // display html form
-
-		http.ServeFile(w, r, "./form.html")
-	case "POST": // process form data
-		// ParseForm() parses raw query data and updates r.PostForm and r.Form
+	case "POST":
 		if err := r.ParseForm(); err != nil {
-			fmt.Fprintf(w, "Error with r.ParseForm")
+			fmt.Fprintf(w, "Error parsing request")
+		} else {
+			entry, err := entry.NewEntry(r.FormValue("first_name"), r.FormValue("last_name"),
+				r.FormValue("phone"), r.FormValue("email"))
+			if err != nil {
+				fmt.Fprintf(w, "Error creating entry")
+				return
+			}
+			book.Save(entry)
+			http.ServeFile(w, r, "./pages/link.html")
+		}
+	default:
+		http.ServeFile(w, r, "./pages/add.html")
+	}
+}
+
+func modifyHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		tmpl := template.Must(template.ParseFiles("./pages/modify.tmpl"))
+		if err := r.ParseForm(); err != nil {
+			fmt.Fprintf(w, "error parsing request")
+		}
+
+		strID := r.FormValue("id")
+		id, err := strconv.ParseUint(strID, 10, 64)
+		if err != nil {
+			fmt.Fprintf(w, "error parsing id")
+		}
+		entry, _ := book.Get(id)
+		tmpl.Execute(w, entry)
+	case "POST":
+		if err := r.ParseForm(); err != nil {
+			fmt.Fprintf(w, "error parsing request")
+		}
+		strID := r.FormValue("id")
+		id, err := strconv.ParseUint(strID, 10, 64)
+		if err != nil {
+			fmt.Fprintf(w, "error parsing id")
+		}
+		entry, ok := book.Get(id)
+		if !ok {
+			fmt.Fprintf(w, "Error getting book with id: %v", id)
 			return
 		}
-		e := Entry{ID: string(len(entries))} // TODO this is aweful
-		e.FirstName = r.FormValue("first_name")
-		e.LastName = r.FormValue("last_name")
-		// e.Phone
-		// e.Email
-		entries = append(entries, e)
-		fmt.Fprintf(w, "Successfully added an entry. Visit /entry to see the full list")
-	default:
-		fmt.Fprintf(w, "Attempting an unsupported action")
+		entry.FirstName = r.FormValue("first_name")
+		entry.LastName = r.FormValue("last_name")
+		entry.Phone = r.FormValue("phone")
+		entry.Email = r.FormValue("email")
+		book.Save(entry)
+		http.ServeFile(w, r, "./pages/link.html")
 	}
 }
-func ModifyEntry(w http.ResponseWriter, r *http.Request) {}
 
-func ListPretty(w http.ResponseWriter, r *http.Request) {
-	tmpl := template.Must(template.ParseFiles("./tmpl/modify.tmpl"))
-	tmpl.Execute(w, entries)
+func deleteHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		fmt.Fprintf(w, "error parsing request")
+	}
+	strID := r.FormValue("id")
+	id, err := strconv.ParseUint(strID, 10, 64)
+	if err != nil {
+		fmt.Fprintf(w, "error parsing id")
+	}
+	book.Delete(id)
+	http.ServeFile(w, r, "./pages/link.html")
 }
-func DeleteEntry(w http.ResponseWriter, r *http.Request) {}
+
+// handles get and display
+func getHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		http.ServeFile(w, r, "./pages/get.html")
+	case "POST":
+		if err := r.ParseForm(); err != nil {
+			fmt.Fprintf(w, "error parsing request")
+			return
+		}
+		if key := r.FormValue("name"); key != "" {
+			// searching by name
+			matches := book.Search(key)
+			json.NewEncoder(w).Encode(matches)
+		} else if key = r.FormValue("id"); key != "" {
+			// searching by id
+			id, err := strconv.ParseUint(key, 10, 64)
+			if err != nil {
+				fmt.Fprintf(w, "error parsing id")
+			}
+			entry, _ := book.Get(id)
+			json.NewEncoder(w).Encode(entry)
+
+		} else {
+			fmt.Fprintf(w, "No entry was found with those search parameters")
+		}
+	}
+}
+
+func importHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		http.ServeFile(w, r, "./pages/upload.html")
+	case "POST":
+		file, _, err := r.FormFile("csvfile")
+		if err != nil {
+			fmt.Println("ERROR")
+		}
+		defer file.Close()
+		csvReader := csv.NewReader(file)
+		lines, _ := csvReader.ReadAll()
+		if err != nil {
+			fmt.Fprintf(w, "error parsing id")
+		}
+		for _, e := range lines {
+
+			entry, err := entry.NewEntry(e[0], e[1], e[2], e[3])
+			if err != nil {
+				break
+			}
+			book.Save(entry)
+		}
+		http.ServeFile(w, r, "./pages/link.html")
+	}
+
+}
+
+func exportHandler(w http.ResponseWriter, r *http.Request) {
+
+	filename := "./addressbook.csv"
+
+	book.Export(filename)
+
+	//copy the relevant headers.
+	w.Header().Set("Content-Disposition", "attachment; filename=addressbook.csv")
+	w.Header().Set("Content-Type", r.Header.Get("Content-Type"))
+	w.Header().Set("Content-Length", r.Header.Get("Content-Length"))
+
+	//stream the body to the client without fully loading it into memory
+
+	f, err := os.Open(filename)
+	if err != nil {
+		return
+	}
+	io.Copy(w, bufio.NewReader(f))
+	err = os.Remove(filename)
+	if err != nil {
+		fmt.Println("Error deleting file: %v", err)
+	}
+}
+func populate() {
+	p := map[int][]string{
+		0: {"Jessica", "Bellon", "214-555-9999", "Jess@Gmail.com"},
+		1: {"Will", "McGinnis", "991-909-0123", "btown@email.com"},
+		2: {"Tyler", "Higgins", "111-111-1111", "thiggs@mail.com"},
+		3: {"Zelda", "Bellon", "232-909-9998", "Zelda@dogs.com"}}
+	for _, e := range p {
+		ent, err := entry.NewEntry(e[0], e[1], e[2], e[3])
+		if err != nil {
+			break
+		}
+		book.Save(ent)
+	}
+}
