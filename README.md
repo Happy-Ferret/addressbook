@@ -2,6 +2,7 @@
 This project is a RESTful implementation of an addressbook.
 
 It supports:
+
     * Listing all entries
     * Modifying specific entries
     * Deleting specific entries
