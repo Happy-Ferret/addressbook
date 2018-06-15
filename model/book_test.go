@@ -1,52 +1,15 @@
-package entry
+package model
 
-import (
-	"testing"
-)
+import "testing"
 
-var testPeople = map[int]Entry{
-	0: Entry{0, "Jessica", "Bellon", "214-555-9999", "Jess@Gmail.com"},
-	1: Entry{0, "Will", "McGinnis", "991-909-0123", "btown@email.com"},
-	2: Entry{0, "Tyler", "Higgins", "111-111-1111", "thiggs@mail.com"},
-	3: Entry{0, "Zelda", "Bellon", "232-909-9998", "Zelda@dogs.com"},
-}
-
-func mustNewEntry(t *testing.T, fname string, lname string, phone string, email string) *Entry {
-	entry, err := NewEntry(fname, lname, phone, email)
-	if err != nil {
-		t.Fatalf("Error: %v", err)
+// populateBook populates an addressbook with test data
+func populateBook(t *testing.T) *Book {
+	b := NewBook()
+	for _, i := range testPeople {
+		entry := mustNewEntry(t, i.FirstName, i.LastName, i.Phone, i.Email)
+		b.Save(entry)
 	}
-	return entry
-}
-
-func TestNewEntry(t *testing.T) {
-	person := testPeople[1]
-	entry := mustNewEntry(t, person.FirstName, person.LastName, person.Phone, person.Email)
-	if entry.ID != 0 {
-		t.Errorf("Expected ID %q, got %q", 0, entry.ID)
-	}
-
-	if entry.FirstName != person.FirstName {
-		t.Errorf("Expected First Name %q, got %q", person.FirstName, entry.FirstName)
-	}
-	if entry.LastName != person.LastName {
-		t.Errorf("Expected Last Name %q, got %q", person.LastName, entry.LastName)
-	}
-
-	if entry.Phone != person.Phone {
-		t.Errorf("Expected Phone number %q, got %q", person.Phone, entry.Phone)
-	}
-	if entry.Email != person.Email {
-		t.Errorf("Expected Email address %q, got %q", person.Email, entry.Email)
-	}
-}
-
-func TestNewEntryFailing(t *testing.T) {
-	_, err := NewEntry("", "", "", "")
-	if err == nil {
-		t.Errorf("expected 'empty entry' error")
-	}
-
+	return b
 }
 
 func TestSaveAndRetrieve(t *testing.T) {
@@ -91,15 +54,38 @@ func TestSaveAndRetrieveTwo(t *testing.T) {
 }
 
 func TestSaveModifyAndRetrieve(t *testing.T) {
-	person := testPeople[0]
-	entry := mustNewEntry(t, person.FirstName, person.LastName, person.Phone, person.Email)
 
-	b := NewBook()
-	b.Save(entry)
+	b := populateBook(t)
 
-	entry.FirstName = "Zelda"
-	if b.All()[0].FirstName != person.FirstName {
-		t.Errorf("Something Went Wrong. Saved entry's name was %v", person.FirstName)
+	// returns a single entry which has a name "zelda"
+	testEntry := b.GetFirst("Zelda")
+
+	entry, found := b.Get(testEntry.ID)
+	if !found {
+		t.Error("Saved entry not found")
+	}
+
+	entry.LastName = "TheDog"
+	t.Log(entry.ID)
+	b.Save(&entry)
+
+	entry, found = b.Get(testEntry.ID)
+	if !found {
+		t.Error("Saved entry not found")
+	}
+	if entry.LastName != "TheDog" {
+		t.Error("Entry did not modify as expected")
+	}
+}
+
+func TestGetFirst(t *testing.T) {
+
+	testParam := "Bellon"
+	b := populateBook(t)
+	t1 := b.GetFirst(testParam)
+	t2 := b.Search(testParam)[0]
+	if t1 != t2 {
+		t.Errorf("Expected the same response got: %v and %v", t1, t2)
 	}
 }
 
@@ -132,7 +118,7 @@ func TestSaveAndGet(t *testing.T) {
 	if !ok {
 		t.Errorf("Entry not found")
 	}
-	if *entry != *ent {
+	if *entry != ent {
 		t.Errorf("expected %v, got %v", entry, ent)
 	}
 }
@@ -163,4 +149,19 @@ func TestFind(t *testing.T) {
 	}
 }
 
-// 100 % coverage?
+func TestDelete(t *testing.T) {
+	b := populateBook(t)
+
+	lenB := len(b.All())
+	entry := b.GetFirst("Bellon")
+
+	b.Delete(entry.ID)
+	if len(b.All()) == lenB {
+		t.Error("Entry did not get deleted")
+	}
+
+	if _, found := b.Get(entry.ID); found {
+		t.Error("Entry did not get deleted")
+
+	}
+}

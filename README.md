@@ -10,9 +10,28 @@ It supports:
     * Import from CSV
     * Export to CSV
 
+
+## Instructions to run locally
+
+Get the source code:
+
+- `go get github.com/JessTheBell/addressbook` 
+
+
+Navigate to the project folder:
+
+- `cd $GOPATH/src/github.com/JessTheBell/addressbook `
+
+Start the project:
+
+- `go run main.go`
+
+Open `localhost:8080` in the browser of your choice.
+
+Have Fun!
+
+
 There is a disabled populate() function. To start the server with some default entries, uncomment that line in main.
-
-
 
 -------- 
 

@@ -11,11 +11,11 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/JessTheBell/addressbook/entry"
+	"github.com/JessTheBell/addressbook/model"
 	"github.com/alecthomas/template"
 )
 
-var book entry.Book
+var book model.Book
 
 func main() {
 	//	populate() // populate with example entries
@@ -29,6 +29,21 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
+func populate() {
+	p := map[int][]string{
+		0: {"Jessica", "Bellon", "214-555-9999", "Jess@Gmail.com"},
+		1: {"Will", "McGinnis", "991-909-0123", "btown@email.com"},
+		2: {"Tyler", "Higgins", "111-111-1111", "thiggs@mail.com"},
+		3: {"Zelda", "Bellon", "232-909-9998", "Zelda@dogs.com"}}
+	for _, e := range p {
+		ent, err := model.NewEntry(e[0], e[1], e[2], e[3])
+		if err != nil {
+			break
+		}
+		book.Save(ent)
+	}
+}
+
 func listHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl := template.Must(template.ParseFiles("./pages/list.tmpl"))
 	tmpl.Execute(w, book.All())
@@ -40,7 +55,7 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			fmt.Fprintf(w, "Error parsing request")
 		} else {
-			entry, err := entry.NewEntry(r.FormValue("first_name"), r.FormValue("last_name"),
+			entry, err := model.NewEntry(r.FormValue("first_name"), r.FormValue("last_name"),
 				r.FormValue("phone"), r.FormValue("email"))
 			if err != nil {
 				fmt.Fprintf(w, "Error creating entry")
@@ -87,7 +102,7 @@ func modifyHandler(w http.ResponseWriter, r *http.Request) {
 		entry.LastName = r.FormValue("last_name")
 		entry.Phone = r.FormValue("phone")
 		entry.Email = r.FormValue("email")
-		book.Save(entry)
+		book.Save(&entry)
 		http.ServeFile(w, r, "./pages/link.html")
 	}
 }
@@ -151,7 +166,7 @@ func importHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, e := range lines {
 
-			entry, err := entry.NewEntry(e[0], e[1], e[2], e[3])
+			entry, err := model.NewEntry(e[0], e[1], e[2], e[3])
 			if err != nil {
 				break
 			}
@@ -165,37 +180,25 @@ func importHandler(w http.ResponseWriter, r *http.Request) {
 func exportHandler(w http.ResponseWriter, r *http.Request) {
 
 	filename := "./addressbook.csv"
+	err := book.Export()
+	if err != nil {
+		fmt.Println(err)
+	}
 
-	book.Export(filename)
-
-	//copy the relevant headers.
 	w.Header().Set("Content-Disposition", "attachment; filename=addressbook.csv")
-	w.Header().Set("Content-Type", r.Header.Get("Content-Type"))
-	w.Header().Set("Content-Length", r.Header.Get("Content-Length"))
+	w.Header().Set("Content-Type", "text/csv")
 
-	//stream the body to the client without fully loading it into memory
-
+	//stream the body to the client
 	f, err := os.Open(filename)
 	if err != nil {
+		fmt.Println(err)
 		return
 	}
+
 	io.Copy(w, bufio.NewReader(f))
+	// delete the csv file off of the local machine when done
 	err = os.Remove(filename)
 	if err != nil {
 		fmt.Println("Error deleting file: %v", err)
-	}
-}
-func populate() {
-	p := map[int][]string{
-		0: {"Jessica", "Bellon", "214-555-9999", "Jess@Gmail.com"},
-		1: {"Will", "McGinnis", "991-909-0123", "btown@email.com"},
-		2: {"Tyler", "Higgins", "111-111-1111", "thiggs@mail.com"},
-		3: {"Zelda", "Bellon", "232-909-9998", "Zelda@dogs.com"}}
-	for _, e := range p {
-		ent, err := entry.NewEntry(e[0], e[1], e[2], e[3])
-		if err != nil {
-			break
-		}
-		book.Save(ent)
 	}
 }
