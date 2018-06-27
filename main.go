@@ -10,9 +10,10 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"text/template"
 
 	"github.com/JessTheBell/addressbook/model"
-	"github.com/alecthomas/template"
+	//	"github.com/alecthomas/template"
 )
 
 var book model.Book
